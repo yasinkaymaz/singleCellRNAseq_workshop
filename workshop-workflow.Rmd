@@ -46,7 +46,7 @@ Seurat package provides a function for reading 10X datasets from a directory. Th
 Read10X function reads the input files and stores them in a matrix with all information merged together. 
 
 ```{r}
-pbmc.data <- Read10X(data.dir = "~/Downloads/scRNAseqWS/filtered_gene_bc_matrices/GRCh38/")
+pbmc.data <- Read10X(data.dir = "~/Downloads/scRNAseqWS/10Xdata/filtered_gene_bc_matrices/GRCh38/")
 
 ```
 We, then, create a Seurat object file using the data matrix we just generated. The raw data is stored in the 'raw.data' slot of the Seurat object (pbmc@raw.data). 
@@ -177,62 +177,37 @@ Alignment workflow for the four mouse brain datasets
 
 Load the metadata of each study.
 ```{r}
-ob.list <- list(zeisel, romanov, tasic, marques)
 
-#Load the expression data of each study.
+ob.list <- list("zeisel", "romanov", "tasic", "marques")
+
+#Load the expression and meta data of each study.
 
 for (i in 1:length(ob.list)){
-  print(ob.list[[i]]); 
   obj.data <- paste(ob.list[[i]],".data",sep=""); 
-  print(obj); 
   #Read the expression matrix from a text file for each dataset.
-  assign(obj, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".expression.txt",sep=""), header = TRUE, row.names = 1))
-  #Here we are converting dataframes into sparse matrices since scRNAseq data is generally full of zeros.
-  assign(obj, as(as.matrix(Zeisel.data), "dgCMatrix"))
+  assign(obj.data, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".expression.txt",sep=""), header = TRUE, row.names = 1))
   }
 
-
 for (i in 1:length(ob.list)){
-  print(ob.list[[i]]); 
   obj.meta <- paste(ob.list[[i]],".meta",sep=""); 
-  print(obj);
   #Reading the Run information meta data from a text file for each dataset.
-  assign(obj, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".RunTable.txt",sep=""), header = TRUE, row.names = 1))
-  #Put the Run Ids to row names
-  rownames(ob.list[[i]]) <- ob.list[[i]]$Run_s
-  }
-
-
+  assign(obj.meta, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".RunTable.txt",sep=""), header = TRUE))
+}
 ```
-
-```{r}
-for (i in 1:length(ob.list)){
-  print(ob.list[[i]]);
-  obj.data <- paste(ob.list[[i]],".data",sep=""); 
-  
-  SeuObj <- ob.list[[i]]
-  
-  SeuObj <- CreateSeuratObject(raw.data = obj.data)
-  SeuObj <- FilterCells(SeuObj, subset.names = "nGene", low.thresholds = 2500)
-  SeuObj <- NormalizeData(SeuObj)
-  SeuObj <- FindVariableGenes(SeuObj, do.plot = F, display.progress = F)
-  SeuObj <- ScaleData(SeuObj)
-  SeuObj@meta.data$tech <- ob.list[[i]]
-  }
-```
-
 
 Check the PCA and tSNE prior to alignment:
 ```{r}
-batches <- rbind(Zeisel.meta[,c("Owner","SRA_Study_s")],
-                 Tasic.meta[,c("Owner","SRA_Study_s")],
-                 Romanov.meta[,c("Owner","SRA_Study_s")],
-                 Marques.meta[,c("Owner","SRA_Study_s")])
-combined.data <- cbind(Zeisel.data, Tasic.data, Romanov.data, Marques.data)
+batches <- rbind(zeisel.meta[,c("Run_s","Owner","SRA_Study_s")],
+                 tasic.meta[,c("Run_s","Owner","SRA_Study_s")],
+                 romanov.meta[,c("Run_s","Owner","SRA_Study_s")],
+                 marques.meta[,c("Run_s","Owner","SRA_Study_s")])
+rownames(batches) <- batches$Run_s
 
+combined.data <- cbind(zeisel.data, tasic.data, romanov.data, marques.data)
+
+combined.data <- as(as.matrix(combined.data), "dgCMatrix")
 fourDataset <- CreateSeuratObject(raw.data = combined.data, project = "4dataset.Pre")
-
-fourDataset <- AddMetaData(object = fourDataset, metadata = batches, col.name = c("Owner","SRA_Study_s"))
+fourDataset <- AddMetaData(object = fourDataset, metadata = batches)
 fourDataset <- FilterCells(fourDataset, subset.names = "nGene", low.thresholds = 2500)
 fourDataset <- NormalizeData(fourDataset)
 fourDataset <- FindVariableGenes(fourDataset, do.plot = F, display.progress = F)
@@ -246,10 +221,51 @@ TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 ```
 
 
+
+```{r}
+# Create and setup Seurat objects for each dataset
+#Here we are converting dataframes into sparse matrices since scRNAseq data is generally full of zeros.
+zeisel.data <- as(as.matrix(zeisel.data), "dgCMatrix")
+zeisel <- CreateSeuratObject(raw.data = zeisel.data)
+zeisel <- FilterCells(zeisel, subset.names = "nGene", low.thresholds = 2500)
+zeisel <- NormalizeData(zeisel)
+zeisel <- FindVariableGenes(zeisel, do.plot = F, display.progress = F)
+zeisel <- ScaleData(zeisel)
+zeisel@meta.data$tech <- "zeisel"
+
+tasic.data <- as(as.matrix(tasic.data), "dgCMatrix")
+tasic <- CreateSeuratObject(raw.data = tasic.data)
+tasic <- FilterCells(tasic, subset.names = "nGene", low.thresholds = 2500)
+tasic <- NormalizeData(tasic)
+tasic <- FindVariableGenes(tasic, do.plot = F, display.progress = F)
+tasic <- ScaleData(tasic)
+tasic@meta.data$tech <- "tasic"
+
+romanov.data <- as(as.matrix(romanov.data), "dgCMatrix")
+romanov <- CreateSeuratObject(raw.data = romanov.data)
+romanov <- FilterCells(romanov, subset.names = "nGene", low.thresholds = 2500)
+romanov <- NormalizeData(romanov)
+romanov <- FindVariableGenes(romanov, do.plot = F, display.progress = F)
+romanov <- ScaleData(romanov)
+romanov@meta.data$tech <- "romanov"
+
+marques.data <- as(as.matrix(marques.data), "dgCMatrix")
+marques <- CreateSeuratObject(raw.data = marques.data)
+marques <- FilterCells(marques, subset.names = "nGene", low.thresholds = 2500)
+marques <- NormalizeData(marques)
+marques <- FindVariableGenes(marques, do.plot = F, display.progress = F)
+marques <- ScaleData(marques)
+marques@meta.data$tech <- "marques"
+
+```
+
+
 ###### - Finding common variable genes between multiple datasets
 
 Determine genes to use for CCA, must be highly variable in at least 2 datasets
 ```{r}
+ob.list <- list(zeisel, romanov, tasic, marques)
+
 genes.use <- c()
 for (i in 1:length(ob.list)) {
   genes.use <- c(genes.use, head(rownames(ob.list[[i]]@hvg.info), 1000))
