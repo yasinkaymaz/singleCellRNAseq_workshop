@@ -74,16 +74,139 @@ FeaturePlot(object = pbmc, features.plot = markers$gene, cols.use = c("grey", "b
 
 
 
-#############---------------------###################
+#########################################################################
+######     Second Part: Working with multiple scRNAseq datasets #########
+#########################################################################
+######   Alignment workflow for the four mouse brain datasets   #########
+######----------------------------------------------------------#########
 
-###### 2)  Second Part, Working with multiple scRNAseq datasets:
+library(Seurat)
+library(Matrix)
 
 ###### - Loading datasets and QC (with PCA)
+setwd("/Users/yasinkaymaz/Documents/Harvard_Informatics/Data_Explore/mouse/")
+
+#Load the metadata of each study.
+#Zeisel: Single-cell RNA-seq of mouse cerebral cortex
+Zeisel.meta <- read.delim("workshopData/Zeisel.RunTable.txt",header = TRUE)
+rownames(Zeisel.meta) <- Zeisel.meta$Run_s
+#Tasic: Adult mouse cortical cell taxonomy by single cell transcriptomics
+Tasic.meta <- read.delim("workshopData/Tasic.RunTable.txt",header = TRUE)
+rownames(Tasic.meta) <- Tasic.meta$Run_s
+#Romanov: Single-cell RNA-seq of mouse hypothalamus
+Romanov.meta <- read.delim("workshopData/Romanov.RunTable.txt",header = TRUE)
+rownames(Romanov.meta) <- Romanov.meta$Run_s
+#Marques: RNA-seq analysis of single cells of the oligodendrocyte lineage from nine distinct regions of the anterior-posterior and dorsal-ventral axis of the mouse juvenile central nervous system
+Marques.meta <- read.delim("workshopData/Marques.RunTable.txt",header = TRUE)
+rownames(Marques.meta) <- Marques.meta$Run_s
+
+#Load the expression data of each study.
+Zeisel.data <- read.delim("workshopData/Zeisel.expression.txt", header = TRUE, row.names = 1)
+dim(Zeisel.data)
+Tasic.data <- read.delim("workshopData/Tasic.expression.txt", header = TRUE, row.names = 1)
+dim(Tasic.data)
+Romanov.data <- read.delim("workshopData/Romanov.expression.txt", header = TRUE, row.names = 1)
+dim(Romanov.data)
+Marques.data <- read.delim("workshopData/Marques.expression.txt", header = TRUE, row.names = 1)
+dim(Marques.data)
+
+# Convert to sparse matrices for efficiency
+zeisel.data <- as(as.matrix(Zeisel.data), "dgCMatrix")
+romanov.data <- as(as.matrix(Romanov.data), "dgCMatrix")
+tasic.data <- as(as.matrix(Tasic.data), "dgCMatrix")
+marques.data <- as(as.matrix(Marques.data), "dgCMatrix")
+
+# Create and setup Seurat objects for each dataset
+zeisel <- CreateSeuratObject(raw.data = zeisel.data)
+zeisel <- FilterCells(zeisel, subset.names = "nGene", low.thresholds = 2500)
+zeisel <- NormalizeData(zeisel)
+zeisel <- FindVariableGenes(zeisel, do.plot = F, display.progress = F)
+zeisel <- ScaleData(zeisel)
+zeisel@meta.data$tech <- "zeisel"
+
+tasic <- CreateSeuratObject(raw.data = tasic.data)
+tasic <- FilterCells(tasic, subset.names = "nGene", low.thresholds = 2500)
+tasic <- NormalizeData(tasic)
+tasic <- FindVariableGenes(tasic, do.plot = F, display.progress = F)
+tasic <- ScaleData(tasic)
+tasic@meta.data$tech <- "tasic"
+
+romanov <- CreateSeuratObject(raw.data = romanov.data)
+romanov <- FilterCells(romanov, subset.names = "nGene", low.thresholds = 2500)
+romanov <- NormalizeData(romanov)
+romanov <- FindVariableGenes(romanov, do.plot = F, display.progress = F)
+romanov <- ScaleData(romanov)
+romanov@meta.data$tech <- "romanov"
+
+marques <- CreateSeuratObject(raw.data = marques.data)
+marques <- FilterCells(marques, subset.names = "nGene", low.thresholds = 2500)
+marques <- NormalizeData(marques)
+marques <- FindVariableGenes(marques, do.plot = F, display.progress = F)
+marques <- ScaleData(marques)
+marques@meta.data$tech <- "marques"
+
+#Check the PCA and tSNE prior to alignment:
+batches <- rbind(Zeisel.meta[,c("Owner","SRA_Study_s")],
+                 Tasic.meta[,c("Owner","SRA_Study_s")],
+                 Romanov.meta[,c("Owner","SRA_Study_s")],
+                 Marques.meta[,c("Owner","SRA_Study_s")])
+combined.data <- cbind(Zeisel.data, Tasic.data, Romanov.data, Marques.data)
+dim(combined.data)
+fourDataset <- CreateSeuratObject(raw.data = combined.data, project = "4dataset.Pre")
+
+fourDataset <- AddMetaData(object = fourDataset, metadata = batches, col.name = c("Owner","SRA_Study_s"))
+fourDataset <- FilterCells(fourDataset, subset.names = "nGene", low.thresholds = 2500)
+fourDataset <- NormalizeData(fourDataset)
+fourDataset <- FindVariableGenes(fourDataset, do.plot = F, display.progress = F)
+fourDataset <- ScaleData(fourDataset)
+
+fourDataset <- RunPCA(object = fourDataset, pc.genes = fourDataset@var.genes, pcs.compute = 10, do.print = FALSE)
+PCAPlot(fourDataset, pt.size=1, group.by ="Owner", dim.1 = 1, dim.2 = 2)
+
+fourDataset <- RunTSNE(fourDataset, reduction.use = "pca", dims.use = 1:10)
+TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 
 ###### - Finding common variable genes between multiple datasets
+# Determine genes to use for CCA, must be highly variable in at least 2 datasets
+ob.list <- list(zeisel, romanov, tasic, marques, E18Neurons)
+genes.use <- c()
+for (i in 1:length(ob.list)) {
+  genes.use <- c(genes.use, head(rownames(ob.list[[i]]@hvg.info), 1000))
+}
+genes.use <- names(which(table(genes.use) > 1))
+for (i in 1:length(ob.list)) {
+  genes.use <- genes.use[genes.use %in% rownames(ob.list[[i]]@scale.data)]
+}
+
 
 ###### - Multi-dataset alignment with CCA and Clustering cells (tSNE)
+# Run multi-set CCA
+mouseBrain.integrated <- RunMultiCCA(ob.list, genes.use = genes.use, num.ccs = 15)
+
+# CC Selection
+MetageneBicorPlot(mouseBrain.integrated, grouping.var = "tech", dims.eval = 1:15)
+
+# Run rare non-overlapping filtering
+mouseBrain.integrated <- CalcVarExpRatio(object = mouseBrain.integrated, reduction.type = "pca",
+                                         grouping.var = "tech", dims.use = 1:10)
+mouseBrain.integrated <- SubsetData(mouseBrain.integrated, subset.name = "var.ratio.pca",
+                                    accept.low = 0.5)
+
+# Alignment
+mouseBrain.integrated <- AlignSubspace(mouseBrain.integrated,
+                                       reduction.type = "cca",
+                                       grouping.var = "tech",
+                                       dims.align = 1:10)
 
 ###### - Before and after comparison (pre/post-Alignment cell clustering)
+# t-SNE and Clustering
+mouseBrain.integrated <- FindClusters(mouseBrain.integrated, reduction.type = "cca.aligned",
+                                      dims.use = 1:10, save.SNN = T, resolution = 0.4)
+mouseBrain.integrated <- RunTSNE(mouseBrain.integrated,
+                                 reduction.use = "cca.aligned",
+                                 dims.use = 1:10)
+# Visualization
+TSNEPlot(mouseBrain.integrated, do.label = T)
+TSNEPlot(mouseBrain.integrated, do.label = T,group.by ="tech")
 
 ###### - Pros/Cons of this method
