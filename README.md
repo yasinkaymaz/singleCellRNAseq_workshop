@@ -17,6 +17,7 @@ Download the datasets
 mkdir scRNAseq_wd
 cd scRNAseq_wd
 wget ifx:/data/pub/bionano2018/scRNAseqWS.zip
+unzip scRNAseqWS.zip
 ```
 
 Follow the tutorial in workshop-workflow.html

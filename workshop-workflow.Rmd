@@ -177,70 +177,48 @@ Alignment workflow for the four mouse brain datasets
 
 Load the metadata of each study.
 ```{r}
-
-#Zeisel: Single-cell RNA-seq of mouse cerebral cortex
-Zeisel.meta <- read.delim("~/Downloads/scRNAseqWS/Zeisel.RunTable.txt",header = TRUE)
-rownames(Zeisel.meta) <- Zeisel.meta$Run_s
-#Tasic: Adult mouse cortical cell taxonomy by single cell transcriptomics
-Tasic.meta <- read.delim("~/Downloads/scRNAseqWS/Tasic.RunTable.txt",header = TRUE)
-rownames(Tasic.meta) <- Tasic.meta$Run_s
-#Romanov: Single-cell RNA-seq of mouse hypothalamus
-Romanov.meta <- read.delim("~/Downloads/scRNAseqWS/Romanov.RunTable.txt",header = TRUE)
-rownames(Romanov.meta) <- Romanov.meta$Run_s
-#Marques: RNA-seq analysis of single cells of the oligodendrocyte lineage from nine distinct regions of the anterior-posterior and dorsal-ventral axis of the mouse juvenile central nervous system
-Marques.meta <- read.delim("~/Downloads/scRNAseqWS/Marques.RunTable.txt",header = TRUE)
-rownames(Marques.meta) <- Marques.meta$Run_s
+ob.list <- list(zeisel, romanov, tasic, marques)
 
 #Load the expression data of each study.
-Zeisel.data <- read.delim("~/Downloads/scRNAseqWS/Zeisel.expression.txt", header = TRUE, row.names = 1)
-dim(Zeisel.data)
-Tasic.data <- read.delim("~/Downloads/scRNAseqWS/Tasic.expression.txt", header = TRUE, row.names = 1)
-dim(Tasic.data)
-Romanov.data <- read.delim("~/Downloads/scRNAseqWS/Romanov.expression.txt", header = TRUE, row.names = 1)
-dim(Romanov.data)
-Marques.data <- read.delim("~/Downloads/scRNAseqWS/Marques.expression.txt", header = TRUE, row.names = 1)
-dim(Marques.data)
+
+for (i in 1:length(ob.list)){
+  print(ob.list[[i]]); 
+  obj.data <- paste(ob.list[[i]],".data",sep=""); 
+  print(obj); 
+  #Read the expression matrix from a text file for each dataset.
+  assign(obj, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".expression.txt",sep=""), header = TRUE, row.names = 1))
+  #Here we are converting dataframes into sparse matrices since scRNAseq data is generally full of zeros.
+  assign(obj, as(as.matrix(Zeisel.data), "dgCMatrix"))
+  }
+
+
+for (i in 1:length(ob.list)){
+  print(ob.list[[i]]); 
+  obj.meta <- paste(ob.list[[i]],".meta",sep=""); 
+  print(obj);
+  #Reading the Run information meta data from a text file for each dataset.
+  assign(obj, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".RunTable.txt",sep=""), header = TRUE, row.names = 1))
+  #Put the Run Ids to row names
+  rownames(ob.list[[i]]) <- ob.list[[i]]$Run_s
+  }
+
+
 ```
 
-Here we are converting dataframes into sparse matrices since scRNAseq data is generally full of zeros.
-
 ```{r}
-# Convert to sparse matrices for efficiency
-zeisel.data <- as(as.matrix(Zeisel.data), "dgCMatrix")
-romanov.data <- as(as.matrix(Romanov.data), "dgCMatrix")
-tasic.data <- as(as.matrix(Tasic.data), "dgCMatrix")
-marques.data <- as(as.matrix(Marques.data), "dgCMatrix")
-```
-
-```{r}
-# Create and setup Seurat objects for each dataset
-zeisel <- CreateSeuratObject(raw.data = zeisel.data)
-zeisel <- FilterCells(zeisel, subset.names = "nGene", low.thresholds = 2500)
-zeisel <- NormalizeData(zeisel)
-zeisel <- FindVariableGenes(zeisel, do.plot = F, display.progress = F)
-zeisel <- ScaleData(zeisel)
-zeisel@meta.data$tech <- "zeisel"
-
-tasic <- CreateSeuratObject(raw.data = tasic.data)
-tasic <- FilterCells(tasic, subset.names = "nGene", low.thresholds = 2500)
-tasic <- NormalizeData(tasic)
-tasic <- FindVariableGenes(tasic, do.plot = F, display.progress = F)
-tasic <- ScaleData(tasic)
-tasic@meta.data$tech <- "tasic"
-
-romanov <- CreateSeuratObject(raw.data = romanov.data)
-romanov <- FilterCells(romanov, subset.names = "nGene", low.thresholds = 2500)
-romanov <- NormalizeData(romanov)
-romanov <- FindVariableGenes(romanov, do.plot = F, display.progress = F)
-romanov <- ScaleData(romanov)
-romanov@meta.data$tech <- "romanov"
-
-marques <- CreateSeuratObject(raw.data = marques.data)
-marques <- FilterCells(marques, subset.names = "nGene", low.thresholds = 2500)
-marques <- NormalizeData(marques)
-marques <- FindVariableGenes(marques, do.plot = F, display.progress = F)
-marques <- ScaleData(marques)
-marques@meta.data$tech <- "marques"
+for (i in 1:length(ob.list)){
+  print(ob.list[[i]]);
+  obj.data <- paste(ob.list[[i]],".data",sep=""); 
+  
+  SeuObj <- ob.list[[i]]
+  
+  SeuObj <- CreateSeuratObject(raw.data = obj.data)
+  SeuObj <- FilterCells(SeuObj, subset.names = "nGene", low.thresholds = 2500)
+  SeuObj <- NormalizeData(SeuObj)
+  SeuObj <- FindVariableGenes(SeuObj, do.plot = F, display.progress = F)
+  SeuObj <- ScaleData(SeuObj)
+  SeuObj@meta.data$tech <- ob.list[[i]]
+  }
 ```
 
 
@@ -272,7 +250,6 @@ TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 
 Determine genes to use for CCA, must be highly variable in at least 2 datasets
 ```{r}
-ob.list <- list(zeisel, romanov, tasic, marques)
 genes.use <- c()
 for (i in 1:length(ob.list)) {
   genes.use <- c(genes.use, head(rownames(ob.list[[i]]@hvg.info), 1000))
@@ -318,4 +295,9 @@ mouseBrain.integrated <- RunTSNE(mouseBrain.integrated,
 # Visualization
 TSNEPlot(mouseBrain.integrated, do.label = T)
 TSNEPlot(mouseBrain.integrated, do.label = T,group.by ="tech")
+```
+
+
+```{r}
+sessionInfo()
 ```
