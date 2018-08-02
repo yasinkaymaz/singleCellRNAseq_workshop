@@ -93,7 +93,7 @@ pbmc <- FilterCells(object = pbmc, subset.names = c("nGene", "percent.mito"),
 
 ##### Normalization, Finding Variable Genes, and Scaling the data
 
-The default normalization method provided is "Log normalization" which normalizes gene expression by cell total expression and multiplies by a scale factor (10,000) then log-transforms the value. The normalizes values are then stored in the 'data' slot of the Seurat object (pbmc@data). 
+The default normalization method provided is "Log normalization" which normalizes gene expression by cell total expression and multiplies by a scale factor (10,000) then log-transforms the value. The normalized values are then stored in the 'data' slot of the Seurat object (pbmc@data). 
 
 ```{r}
 
@@ -111,7 +111,7 @@ hv.genes <- head(rownames(pbmc@hvg.info), 1000)
 
 ```
 
-Scaling function, ScaleData, is used to scale and center the expression values of each gene. This function also gives us an opportunity to regress out any unwanted variation from known sources (linear regression). Keep in mind that since the downstream analysis such as dimension reduction is done using only highly variable genes, we can scale the data using only 'hv.genes'. 
+Scaling function, ScaleData, is used to scale and center the expression values of each gene. This function also gives us an opportunity to regress out any unwanted variation from known sources (linear regression). Keep in mind that since the downstream analysis such as dimension reduction is done using only highly variable genes, we can scale the data using only 'hv.genes'. The scaled expression values are then store in the 'scale.data' slot of the object (pbmc@scale.data).
 
 ```{r}
 pbmc <- ScaleData(object = pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI", "percent.mito"),
@@ -121,14 +121,17 @@ pbmc <- ScaleData(object = pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI
 
 ##### Dimension Reduction and Finding cell subtypes (with tSNE)
 
-Here, we are performing Principal Component Analysis (PCA) on the normalized and scaled expression data using highly variable genes.
+Here, we are performing a Principal Component Analysis (PCA) on the normalized and scaled expression data using highly variable genes.
 
 ```{r}
 pbmc <- RunPCA(object = pbmc, pc.genes = hv.genes, do.print = FALSE)
 ```
-The first plot shows the first and second principal components. The second plot demonstrates the standard deviation explained by each PC. We are going to include PCs up to where the graph makes a kink. 
+The first plot shows the first and second principal components. 
 ```{r}
 PCAPlot(object = pbmc, dim.1 = 1, dim.2 = 2)
+```
+This second plot demonstrates the standard deviation explained by each PC. We are going to include PCs up to where the graph makes a kink.
+```{r}
 PCElbowPlot(object = pbmc)
 ```
 
@@ -196,6 +199,12 @@ for (i in 1:length(ob.list)){
   assign(obj.data, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".expression.txt",sep=""), header = TRUE, row.names = 1))
   }
 
+#Since the expression matrices of these datasets are in TPM (already normalized), we are going to skip NormalizeData step in the following steps. However, we still need to log-transform it. log1p = log(1+x), natural log.
+zeisel.data <- log1p(zeisel.data)
+romanov.data <- log1p(romanov.data)
+tasic.data <- log1p(tasic.data)
+marques.data <- log1p(marques.data)
+
 for (i in 1:length(ob.list)){
   obj.meta <- paste(ob.list[[i]],".meta",sep=""); 
   #Reading the Run information meta data from a text file for each dataset.
@@ -217,7 +226,6 @@ combined.data <- as(as.matrix(combined.data), "dgCMatrix")
 fourDataset <- CreateSeuratObject(raw.data = combined.data, project = "4dataset.Pre")
 fourDataset <- AddMetaData(object = fourDataset, metadata = batches)
 fourDataset <- FilterCells(fourDataset, subset.names = "nGene", low.thresholds = 2500)
-fourDataset <- NormalizeData(fourDataset)
 fourDataset <- FindVariableGenes(fourDataset, do.plot = F, display.progress = F)
 fourDataset <- ScaleData(fourDataset, display.progress = F)
 
@@ -230,40 +238,40 @@ TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 
 
 
-```{r}
+```{r warning=FALSE}
 # Create and setup Seurat objects for each dataset
 #Here we are converting dataframes into sparse matrices since scRNAseq data is generally full of zeros.
 zeisel.data <- as(as.matrix(zeisel.data), "dgCMatrix")
 zeisel <- CreateSeuratObject(raw.data = zeisel.data)
+zeisel@meta.data$tech <- "zeisel"
 zeisel <- FilterCells(zeisel, subset.names = "nGene", low.thresholds = 2500)
-zeisel <- NormalizeData(zeisel)
 zeisel <- FindVariableGenes(zeisel, do.plot = F, display.progress = F)
 zeisel <- ScaleData(zeisel, display.progress = F)
-zeisel@meta.data$tech <- "zeisel"
+
 
 tasic.data <- as(as.matrix(tasic.data), "dgCMatrix")
 tasic <- CreateSeuratObject(raw.data = tasic.data)
+tasic@meta.data$tech <- "tasic"
 tasic <- FilterCells(tasic, subset.names = "nGene", low.thresholds = 2500)
-tasic <- NormalizeData(tasic)
 tasic <- FindVariableGenes(tasic, do.plot = F, display.progress = F)
 tasic <- ScaleData(tasic, display.progress = F)
-tasic@meta.data$tech <- "tasic"
+
 
 romanov.data <- as(as.matrix(romanov.data), "dgCMatrix")
 romanov <- CreateSeuratObject(raw.data = romanov.data)
+romanov@meta.data$tech <- "romanov"
 romanov <- FilterCells(romanov, subset.names = "nGene", low.thresholds = 2500)
-romanov <- NormalizeData(romanov)
 romanov <- FindVariableGenes(romanov, do.plot = F, display.progress = F)
 romanov <- ScaleData(romanov, display.progress = F)
-romanov@meta.data$tech <- "romanov"
+
 
 marques.data <- as(as.matrix(marques.data), "dgCMatrix")
 marques <- CreateSeuratObject(raw.data = marques.data)
+marques@meta.data$tech <- "marques"
 marques <- FilterCells(marques, subset.names = "nGene", low.thresholds = 2500)
-marques <- NormalizeData(marques)
 marques <- FindVariableGenes(marques, do.plot = F, display.progress = F)
 marques <- ScaleData(marques, display.progress = F)
-marques@meta.data$tech <- "marques"
+
 
 ```
 
