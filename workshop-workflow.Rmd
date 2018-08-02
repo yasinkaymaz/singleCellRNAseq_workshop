@@ -168,12 +168,12 @@ markers <- pbmc.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
 ## Part 2
 
 
-######     Second Part: Working with multiple scRNAseq datasets
+###### Second Part: Working with multiple scRNAseq datasets
 
 Alignment workflow for the four mouse brain datasets
 
 
-###### - Loading datasets and QC (with PCA)
+###### Loading datasets and QC (with PCA)
 
 Load the metadata of each study.
 ```{r}
@@ -211,7 +211,7 @@ fourDataset <- AddMetaData(object = fourDataset, metadata = batches)
 fourDataset <- FilterCells(fourDataset, subset.names = "nGene", low.thresholds = 2500)
 fourDataset <- NormalizeData(fourDataset)
 fourDataset <- FindVariableGenes(fourDataset, do.plot = F, display.progress = F)
-fourDataset <- ScaleData(fourDataset)
+fourDataset <- ScaleData(fourDataset, display.progress = F)
 
 fourDataset <- RunPCA(object = fourDataset, pc.genes = fourDataset@var.genes, pcs.compute = 10, do.print = FALSE)
 PCAPlot(fourDataset, pt.size=1, group.by ="Owner", dim.1 = 1, dim.2 = 2)
@@ -230,7 +230,7 @@ zeisel <- CreateSeuratObject(raw.data = zeisel.data)
 zeisel <- FilterCells(zeisel, subset.names = "nGene", low.thresholds = 2500)
 zeisel <- NormalizeData(zeisel)
 zeisel <- FindVariableGenes(zeisel, do.plot = F, display.progress = F)
-zeisel <- ScaleData(zeisel)
+zeisel <- ScaleData(zeisel, display.progress = F)
 zeisel@meta.data$tech <- "zeisel"
 
 tasic.data <- as(as.matrix(tasic.data), "dgCMatrix")
@@ -238,7 +238,7 @@ tasic <- CreateSeuratObject(raw.data = tasic.data)
 tasic <- FilterCells(tasic, subset.names = "nGene", low.thresholds = 2500)
 tasic <- NormalizeData(tasic)
 tasic <- FindVariableGenes(tasic, do.plot = F, display.progress = F)
-tasic <- ScaleData(tasic)
+tasic <- ScaleData(tasic, display.progress = F)
 tasic@meta.data$tech <- "tasic"
 
 romanov.data <- as(as.matrix(romanov.data), "dgCMatrix")
@@ -246,7 +246,7 @@ romanov <- CreateSeuratObject(raw.data = romanov.data)
 romanov <- FilterCells(romanov, subset.names = "nGene", low.thresholds = 2500)
 romanov <- NormalizeData(romanov)
 romanov <- FindVariableGenes(romanov, do.plot = F, display.progress = F)
-romanov <- ScaleData(romanov)
+romanov <- ScaleData(romanov, display.progress = F)
 romanov@meta.data$tech <- "romanov"
 
 marques.data <- as(as.matrix(marques.data), "dgCMatrix")
@@ -254,13 +254,13 @@ marques <- CreateSeuratObject(raw.data = marques.data)
 marques <- FilterCells(marques, subset.names = "nGene", low.thresholds = 2500)
 marques <- NormalizeData(marques)
 marques <- FindVariableGenes(marques, do.plot = F, display.progress = F)
-marques <- ScaleData(marques)
+marques <- ScaleData(marques, display.progress = F)
 marques@meta.data$tech <- "marques"
 
 ```
 
 
-###### - Finding common variable genes between multiple datasets
+###### Finding common variable genes between multiple datasets
 
 Determine genes to use for CCA, must be highly variable in at least 2 datasets
 ```{r}
@@ -276,7 +276,7 @@ for (i in 1:length(ob.list)) {
 }
 ```
 
-###### - Multi-dataset alignment with CCA and Clustering cells (tSNE)
+###### Multi-dataset alignment with CCA
 Run multi-set CCA
 ```{r}
 mouseBrain.integrated <- RunMultiCCA(ob.list, genes.use = genes.use, num.ccs = 15)
@@ -292,16 +292,17 @@ mouseBrain.integrated <- SubsetData(mouseBrain.integrated, subset.name = "var.ra
 ```
 Alignment:
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 mouseBrain.integrated <- AlignSubspace(mouseBrain.integrated,
                                        reduction.type = "cca",
                                        grouping.var = "tech",
                                        dims.align = 1:10)
 ```
 
-###### - Before and after comparison (pre/post-Alignment cell clustering)
+###### Post-Alignment cell clustering
 
 t-SNE and Clustering
+
 ```{r}
 mouseBrain.integrated <- FindClusters(mouseBrain.integrated, reduction.type = "cca.aligned",
                                       dims.use = 1:10, save.SNN = T, resolution = 0.4)
