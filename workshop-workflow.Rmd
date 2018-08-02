@@ -168,14 +168,22 @@ markers <- pbmc.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
 ## Part 2
 
 
-###### Second Part: Working with multiple scRNAseq datasets
+##### Second Part: Working with multiple scRNAseq datasets
 
 Alignment workflow for the four mouse brain datasets
 
+Zeisel et al: Single-cell RNA-seq of mouse cerebral cortex
+Tasic et al: Adult mouse cortical cell taxonomy by single cell transcriptomics
+Romanov et al: Single-cell RNA-seq of mouse hypothalamus
+Marques et al: RNA-seq analysis of single cells of the oligodendrocyte lineage from nine distinct regions of the anterior-posterior and dorsal-ventral axis of the mouse juvenile central nervous system
 
-###### Loading datasets and QC (with PCA)
+The raw requencing reads were downloaded public SRA database and processed using Kallisto quantification pipeline. 
 
-Load the metadata of each study.
+##### Loading datasets and QC (with PCA)
+
+We start by loading the expression data and the metadata of each study.
+
+
 ```{r}
 
 ob.list <- list("zeisel", "romanov", "tasic", "marques")
@@ -260,7 +268,14 @@ marques@meta.data$tech <- "marques"
 ```
 
 
-###### Finding common variable genes between multiple datasets
+##### Outline of the alignment process
+
+1) Select highly variable genes shared by at least two datasets,
+2) Identify shared correlation structures (cannonical correlation vectors) across datasets,
+3) Align these dimensions using dynamic time wrapping,
+4) Use cells embedded into low-dimensional space for clustering.
+
+##### Finding common variable genes between multiple datasets
 
 Determine genes to use for CCA, must be highly variable in at least 2 datasets
 ```{r}
@@ -276,8 +291,10 @@ for (i in 1:length(ob.list)) {
 }
 ```
 
-###### Multi-dataset alignment with CCA
+##### Multi-dataset alignment with CCA
+
 Run multi-set CCA
+
 ```{r}
 mouseBrain.integrated <- RunMultiCCA(ob.list, genes.use = genes.use, num.ccs = 15)
 ```
@@ -299,7 +316,7 @@ mouseBrain.integrated <- AlignSubspace(mouseBrain.integrated,
                                        dims.align = 1:10)
 ```
 
-###### Post-Alignment cell clustering
+##### Post-Alignment cell clustering
 
 t-SNE and Clustering
 

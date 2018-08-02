@@ -230,13 +230,15 @@ markers &lt;- pbmc.markers %&gt;% group_by(cluster) %&gt;% top_n(2, avg_logFC)
 </div>
 <div id="part-2" class="section level2">
 <h2>Part 2</h2>
-<div id="second-part-working-with-multiple-scrnaseq-datasets" class="section level6">
-<h6>Second Part: Working with multiple scRNAseq datasets</h6>
+<div id="second-part-working-with-multiple-scrnaseq-datasets" class="section level5">
+<h5>Second Part: Working with multiple scRNAseq datasets</h5>
 <p>Alignment workflow for the four mouse brain datasets</p>
+<p>Zeisel et al: Single-cell RNA-seq of mouse cerebral cortex Tasic et al: Adult mouse cortical cell taxonomy by single cell transcriptomics Romanov et al: Single-cell RNA-seq of mouse hypothalamus Marques et al: RNA-seq analysis of single cells of the oligodendrocyte lineage from nine distinct regions of the anterior-posterior and dorsal-ventral axis of the mouse juvenile central nervous system</p>
+<p>The raw requencing reads were downloaded public SRA database and processed using Kallisto quantification pipeline.</p>
 </div>
-<div id="loading-datasets-and-qc-with-pca" class="section level6">
-<h6>Loading datasets and QC (with PCA)</h6>
-<p>Load the metadata of each study.</p>
+<div id="loading-datasets-and-qc-with-pca" class="section level5">
+<h5>Loading datasets and QC (with PCA)</h5>
+<p>We start by loading the expression data and the metadata of each study.</p>
 <pre class="r"><code>ob.list &lt;- list(&quot;zeisel&quot;, &quot;romanov&quot;, &quot;tasic&quot;, &quot;marques&quot;)
 
 #Load the expression and meta data of each study.
@@ -309,8 +311,17 @@ marques &lt;- FindVariableGenes(marques, do.plot = F, display.progress = F)
 marques &lt;- ScaleData(marques, display.progress = F)
 marques@meta.data$tech &lt;- &quot;marques&quot;</code></pre>
 </div>
-<div id="finding-common-variable-genes-between-multiple-datasets" class="section level6">
-<h6>Finding common variable genes between multiple datasets</h6>
+<div id="outline-of-the-alignment-process" class="section level5">
+<h5>Outline of the alignment process</h5>
+<ol style="list-style-type: decimal">
+<li>Select highly variable genes shared by at least two datasets,</li>
+<li>Identify shared correlation structures (cannonical correlation vectors) across datasets,</li>
+<li>Align these dimensions using dynamic time wrapping,</li>
+<li>Use cells embedded into low-dimensional space for clustering.</li>
+</ol>
+</div>
+<div id="finding-common-variable-genes-between-multiple-datasets" class="section level5">
+<h5>Finding common variable genes between multiple datasets</h5>
 <p>Determine genes to use for CCA, must be highly variable in at least 2 datasets</p>
 <pre class="r"><code>ob.list &lt;- list(zeisel, romanov, tasic, marques)
 
@@ -323,8 +334,8 @@ for (i in 1:length(ob.list)) {
   genes.use &lt;- genes.use[genes.use %in% rownames(ob.list[[i]]@scale.data)]
 }</code></pre>
 </div>
-<div id="multi-dataset-alignment-with-cca" class="section level6">
-<h6>Multi-dataset alignment with CCA</h6>
+<div id="multi-dataset-alignment-with-cca" class="section level5">
+<h5>Multi-dataset alignment with CCA</h5>
 <p>Run multi-set CCA</p>
 <pre class="r"><code>mouseBrain.integrated &lt;- RunMultiCCA(ob.list, genes.use = genes.use, num.ccs = 15)</code></pre>
 <pre><code>## [1] &quot;Computing CC 1&quot;
@@ -354,8 +365,8 @@ mouseBrain.integrated &lt;- SubsetData(mouseBrain.integrated, subset.name = &quo
                                        grouping.var = &quot;tech&quot;,
                                        dims.align = 1:10)</code></pre>
 </div>
-<div id="post-alignment-cell-clustering" class="section level6">
-<h6>Post-Alignment cell clustering</h6>
+<div id="post-alignment-cell-clustering" class="section level5">
+<h5>Post-Alignment cell clustering</h5>
 <p>t-SNE and Clustering</p>
 <pre class="r"><code>mouseBrain.integrated &lt;- FindClusters(mouseBrain.integrated, reduction.type = &quot;cca.aligned&quot;,
                                       dims.use = 1:10, save.SNN = T, resolution = 0.4)
