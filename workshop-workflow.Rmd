@@ -10,7 +10,6 @@ knitr::opts_chunk$set(echo = TRUE)
 library(Matrix)
 library(Seurat)
 library(dplyr)
-library(ggplot2)
 ```
 
 ## Part 1
@@ -42,6 +41,12 @@ Published on November 8, 2017
 ##### Loading data and initial quality checks
 
 Seurat package provides a function for reading 10X datasets from a directory. This directory contains a matrix file (matrix.mtx) which stores UMI counts of genes for every cell in a sparse matrix format, a barcodes (barcodes.tsv) file which keeps the actual barcode sequences assigned to each cell, and a gene file (genes.tsv) for gene id/symbols from the transcriptome annotation. 
+
+```{r}
+library(Matrix)
+library(Seurat)
+library(dplyr)
+```
 
 Read10X function reads the input files and stores them in a matrix with all information merged together. 
 
@@ -135,7 +140,8 @@ This second plot demonstrates the standard deviation explained by each PC. We ar
 PCElbowPlot(object = pbmc)
 ```
 
-Cluster cells is done using Shared Nearest Neighbor (SNN) method. First find k-nearest neighbors for every cell, then, construct a SNN graph. For more information about the algorithms, read Waltman and van Eck (2013) The European Physical Journal B. Each cell (labelled with their barcode sequences) are assing to a cluster id:
+Cluster cells is done using Shared Nearest Neighbor (SNN) method. First find k-nearest neighbors for every cell, then, construct a SNN graph. For more information about the algorithms, read Waltman and van Eck (2013) The European Physical Journal B. 
+Each cell (labelled with their barcode sequences) are assing to a cluster id:
 
 ```{r}
 pbmc <- FindClusters(object = pbmc, reduction.type = "pca", dims.use = 1:10, 
@@ -161,7 +167,7 @@ Here, we are further constrains such as 'min.pct = 0.25' meaning that it will te
 ```{r}
 
 pbmc.markers <- FindAllMarkers(object = pbmc, only.pos = TRUE, min.pct = 0.25, 
-                               thresh.use = 0.25)
+                               logfc.threshold = 0.25)
 markers <- pbmc.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
 
 #FeaturePlot(object = pbmc, features.plot = markers$gene, cols.use = c("grey", "blue"), reduction.use = "tsne")
@@ -214,6 +220,11 @@ for (i in 1:length(ob.list)){
 
 Check the PCA and tSNE prior to alignment:
 ```{r}
+rownames(zeisel.meta) <- zeisel.meta$Run_s
+rownames(romanov.meta) <- romanov.meta$Run_s
+rownames(tasic.meta) <- tasic.meta$Run_s
+rownames(marques.meta) <- marques.meta$Run_s
+
 batches <- rbind(zeisel.meta[,c("Run_s","Owner","SRA_Study_s")],
                  tasic.meta[,c("Run_s","Owner","SRA_Study_s")],
                  romanov.meta[,c("Run_s","Owner","SRA_Study_s")],
@@ -243,35 +254,31 @@ TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 #Here we are converting dataframes into sparse matrices since scRNAseq data is generally full of zeros.
 zeisel.data <- as(as.matrix(zeisel.data), "dgCMatrix")
 zeisel <- CreateSeuratObject(raw.data = zeisel.data)
-zeisel@meta.data$tech <- "zeisel"
+zeisel <- AddMetaData(object = zeisel, metadata = zeisel.meta[,c("Run_s","Owner")])
 zeisel <- FilterCells(zeisel, subset.names = "nGene", low.thresholds = 2500)
 zeisel <- FindVariableGenes(zeisel, do.plot = F, display.progress = F)
 zeisel <- ScaleData(zeisel, display.progress = F)
 
-
 tasic.data <- as(as.matrix(tasic.data), "dgCMatrix")
 tasic <- CreateSeuratObject(raw.data = tasic.data)
-tasic@meta.data$tech <- "tasic"
+tasic <- AddMetaData(object = tasic, metadata = tasic.meta[,c("Run_s","Owner")])
 tasic <- FilterCells(tasic, subset.names = "nGene", low.thresholds = 2500)
 tasic <- FindVariableGenes(tasic, do.plot = F, display.progress = F)
 tasic <- ScaleData(tasic, display.progress = F)
 
-
 romanov.data <- as(as.matrix(romanov.data), "dgCMatrix")
 romanov <- CreateSeuratObject(raw.data = romanov.data)
-romanov@meta.data$tech <- "romanov"
+romanov <- AddMetaData(object = romanov, metadata = romanov.meta[,c("Run_s","Owner")])
 romanov <- FilterCells(romanov, subset.names = "nGene", low.thresholds = 2500)
 romanov <- FindVariableGenes(romanov, do.plot = F, display.progress = F)
 romanov <- ScaleData(romanov, display.progress = F)
 
-
 marques.data <- as(as.matrix(marques.data), "dgCMatrix")
 marques <- CreateSeuratObject(raw.data = marques.data)
-marques@meta.data$tech <- "marques"
+marques <- AddMetaData(object = marques, metadata = marques.meta[,c("Run_s","Owner")])
 marques <- FilterCells(marques, subset.names = "nGene", low.thresholds = 2500)
 marques <- FindVariableGenes(marques, do.plot = F, display.progress = F)
 marques <- ScaleData(marques, display.progress = F)
-
 
 ```
 
@@ -311,7 +318,7 @@ mouseBrain.integrated <- RunMultiCCA(ob.list, genes.use = genes.use, num.ccs = 1
 Run rare non-overlapping filtering
 ```{r}
 mouseBrain.integrated <- CalcVarExpRatio(object = mouseBrain.integrated, reduction.type = "pca",
-                                         grouping.var = "tech", dims.use = 1:10)
+                                         grouping.var = "Owner", dims.use = 1:10)
 mouseBrain.integrated <- SubsetData(mouseBrain.integrated, subset.name = "var.ratio.pca",
                                     accept.low = 0.5)
 ```
@@ -320,7 +327,7 @@ Alignment:
 ```{r message=FALSE, warning=FALSE}
 mouseBrain.integrated <- AlignSubspace(mouseBrain.integrated,
                                        reduction.type = "cca",
-                                       grouping.var = "tech",
+                                       grouping.var = "Owner",
                                        dims.align = 1:10)
 ```
 
@@ -336,7 +343,7 @@ mouseBrain.integrated <- RunTSNE(mouseBrain.integrated,
                                  dims.use = 1:10)
 # Visualization
 TSNEPlot(mouseBrain.integrated, do.label = T)
-TSNEPlot(mouseBrain.integrated, do.label = T,group.by ="tech")
+TSNEPlot(mouseBrain.integrated, do.label = T,group.by ="Owner")
 ```
 
 
