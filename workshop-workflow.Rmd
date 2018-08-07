@@ -46,11 +46,13 @@ Seurat package provides a function for reading 10X datasets from a directory. Th
 library(Matrix)
 library(Seurat)
 library(dplyr)
+library(SIMLR)
 ```
 
 Read10X function reads the input files and stores them in a matrix with all information merged together. 
 
 ```{r}
+
 pbmc.data <- Read10X(data.dir = "~/Downloads/scRNAseqWS/10Xdata/filtered_gene_bc_matrices/GRCh38/")
 
 ```
@@ -61,15 +63,21 @@ min.cells = 3   : keep all genes expressed in >= 3 cells.
 min.genes = 200 : Keep all cells with at least 200 detected genes.
 
 ```{r}
+
 pbmc <- CreateSeuratObject(raw.data = pbmc.data, min.cells = 3, min.genes = 200, project = "10X_PBMC")
+
 ```
 
 One important measure is the proportion of mitochondrial gene expression to overall expression because this gives us an idea about the sensitivity level of sampling other transcripts. This code below will calculate it for each cell and add them to the Seurat object metadata.
 
 ```{r}
+
 mito.genes <- grep(pattern = "^MT-", x = rownames(x = pbmc@data), value = TRUE)
+
 percent.mito <- Matrix::colSums(pbmc@raw.data[mito.genes, ])/Matrix::colSums(pbmc@raw.data)
+
 pbmc <- AddMetaData(object = pbmc, metadata = percent.mito, col.name = "percent.mito")
+
 head(pbmc@meta.data)
 
 ```
@@ -77,7 +85,9 @@ head(pbmc@meta.data)
 We can then check mitochondrial gene expression rate per cell as well as other two metrics internally calculated, nUMIs (Total UMI counts/cell) and nGene (number of genes detected).
 
 ```{r}
+
 VlnPlot(pbmc, features.plot = c("nGene", "nUMI", "percent.mito"))
+
 ```
 
 Using a function from the package, GenePlot, it is possible to compare cells for their nUMI, nGene, and mito percent values. 
@@ -94,6 +104,7 @@ ggplot(pbmc@meta.data, aes(nUMI, percent.mito)) + geom_point()
 
 
 ```{r}
+
 pbmc <- FilterCells(pbmc, subset.names = c("nGene", "percent.mito"), 
                     low.thresholds = c(200, -Inf), high.thresholds = c(2500, 0.05))
 
@@ -115,6 +126,7 @@ pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize",
 Here, 'FindVariableGenes' function calculates variance and mean for every genes across all cells and sorts genes by their variance to mean ratios (VMR). We are going to select top 1000 genes as highly variable genes.
 
 ```{r}
+
 pbmc <- FindVariableGenes(pbmc, mean.function = ExpMean, dispersion.function = LogVMR, 
                           do.plot = FALSE,display.progress = FALSE)
 
@@ -125,8 +137,10 @@ hv.genes <- head(rownames(pbmc@hvg.info), 1000)
 Scaling function, ScaleData, is used to scale and center the expression values of each gene. This function also gives us an opportunity to regress out any unwanted variation from known sources (linear regression). Keep in mind that since the downstream analysis such as dimension reduction is done using only highly variable genes, we can scale the data using only 'hv.genes'. The scaled expression values are then store in the 'scale.data' slot of the object (pbmc@scale.data).
 
 ```{r}
+
 pbmc <- ScaleData(pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI", "percent.mito"),
                   display.progress = FALSE)
+
 ```
 
 
@@ -135,23 +149,35 @@ pbmc <- ScaleData(pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI", "perce
 Here, we are performing a Principal Component Analysis (PCA) on the normalized and scaled expression data using highly variable genes.
 
 ```{r}
+
 pbmc <- RunPCA(pbmc, pc.genes = hv.genes, do.print = FALSE)
+
 ```
+
 The first plot shows the first and second principal components. 
+
 ```{r}
+
 PCAPlot(pbmc, dim.1 = 1, dim.2 = 2)
+
 ```
+
 This second plot demonstrates the standard deviation explained by each PC. We are going to include PCs up to where the graph makes a kink.
+
 ```{r}
+
 PCElbowPlot(pbmc)
+
 ```
 
 Cluster cells is done using Shared Nearest Neighbor (SNN) method. First find k-nearest neighbors for every cell, then, construct a SNN graph. For more information about the algorithms, read Waltman and van Eck (2013) The European Physical Journal B. 
 Each cell (labelled with their barcode sequences) are assing to a cluster id:
 
 ```{r}
+
 pbmc <- FindClusters(pbmc, reduction.type = "pca", dims.use = 1:10, 
                      resolution = 0.6, print.output = TRUE, save.SNN = TRUE)
+
 head(pbmc@ident,20)
 
 ```
@@ -159,8 +185,11 @@ head(pbmc@ident,20)
 For visualizing clustered cells, we are going to use tSNE plot. When running tSNE we should be using the same PCs as we used previously in order to get the same clusters. 
 
 ```{r}
+
 pbmc <- RunTSNE(pbmc, dims.use = 1:10, do.fast = TRUE)
+
 TSNEPlot(pbmc, do.label = TRUE)
+
 ```
 
 
@@ -174,9 +203,13 @@ Here, we are further constrains such as 'min.pct = 0.25' meaning that it will te
 
 pbmc.markers <- FindAllMarkers(pbmc, only.pos = TRUE, min.pct = 0.25, 
                                logfc.threshold = 0.25)
-markers <- pbmc.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
 
-#FeaturePlot(object = pbmc, features.plot = markers$gene, cols.use = c("grey", "blue"), reduction.use = "tsne")
+top5.markers <- pbmc.markers %>% group_by(cluster) %>% top_n(5, avg_logFC)
+
+best.markers <- pbmc.markers %>% group_by(cluster) %>% top_n(1, avg_logFC)
+
+FeaturePlot(object = pbmc, features.plot = best.markers$gene, cols.use = c("grey", "blue"), reduction.use = "tsne")
+
 ```
 
 
@@ -222,10 +255,12 @@ for (i in 1:length(ob.list)){
   #Reading the Run information meta data from a text file for each dataset.
   assign(obj.meta, read.delim(paste("~/Downloads/scRNAseqWS/",ob.list[[i]],".RunTable.txt",sep=""), header = TRUE))
 }
+
 ```
 
 Check the PCA and tSNE prior to alignment:
 ```{r}
+
 rownames(zeisel.meta) <- zeisel.meta$Run_s
 rownames(romanov.meta) <- romanov.meta$Run_s
 rownames(tasic.meta) <- tasic.meta$Run_s
@@ -250,6 +285,7 @@ PCAPlot(fourDataset, pt.size=1, group.by ="Owner", dim.1 = 1, dim.2 = 2)
 
 fourDataset <- RunTSNE(fourDataset, reduction.use = "pca", dims.use = 1:10)
 TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
+
 ```
 
 
@@ -275,7 +311,9 @@ marques <- SubsetData(fourDataset, cells.use=names(marques.data),do.center=T, do
 ##### Finding common variable genes between multiple datasets
 
 Determine genes to use for CCA, must be highly variable in at least 2 datasets
+
 ```{r}
+
 ob.list <- list(zeisel, romanov, tasic, marques)
 
 genes.use <- c()
@@ -286,6 +324,7 @@ genes.use <- names(which(table(genes.use) > 1))
 for (i in 1:length(ob.list)) {
   genes.use <- genes.use[genes.use %in% rownames(ob.list[[i]]@scale.data)]
 }
+
 ```
 
 ##### Multi-dataset alignment with CCA
@@ -293,20 +332,27 @@ for (i in 1:length(ob.list)) {
 Run multi-set CCA
 
 ```{r}
+
 mouseBrain.integrated <- RunMultiCCA(ob.list, genes.use = genes.use, num.ccs = 15)
+
 ```
 
 
 Run rare non-overlapping filtering
+
 ```{r}
+
 mouseBrain.integrated <- CalcVarExpRatio(mouseBrain.integrated, reduction.type = "pca",
                                          grouping.var = "Owner", dims.use = 1:10)
 mouseBrain.integrated <- SubsetData(mouseBrain.integrated, subset.name = "var.ratio.pca",
                                     accept.low = 0.5)
+
 ```
+
 Alignment:
 
 ```{r message=FALSE, warning=FALSE}
+
 mouseBrain.integrated <- AlignSubspace(mouseBrain.integrated,
                                        reduction.type = "cca",
                                        grouping.var = "Owner",
@@ -318,29 +364,38 @@ mouseBrain.integrated <- AlignSubspace(mouseBrain.integrated,
 t-SNE and Clustering
 
 ```{r}
+
 mouseBrain.integrated <- FindClusters(mouseBrain.integrated, reduction.type = "cca.aligned",
                                       dims.use = 1:10, save.SNN = T, resolution = 0.4)
+
 mouseBrain.integrated <- RunTSNE(mouseBrain.integrated,
                                  reduction.use = "cca.aligned",
                                  dims.use = 1:10)
 # Visualization
 TSNEPlot(mouseBrain.integrated, do.label = T)
+
 TSNEPlot(mouseBrain.integrated, do.label = T,group.by ="Owner")
+
 ```
 
 ##### Exploring the alternative Clustering options with SIMLR
 
 ```{r}
+
 library(SIMLR)
+
 set.seed(11111)
 #zeisel.data is already in log.
 # Determine optimal number of clusters as described in the Nat. Methods paper
 # picka cluster range and reports two metrics; the lower the value the more
 # support for that number of clusters; in my limited experience these methods
 # are concordant.
+
 zclust<-SIMLR_Estimate_Number_of_Clusters(zeisel.data, NUMC=2:5)
+
 #run SIMLR
 zsimlr<-SIMLR(zeisel.data, 4)
+
 # Create plotting function, color-coding points by cluster membership
 plotSIMLRclusters <- function(obj) {                                                                                                                                                           
     col <- ifelse(obj$y$cluster==1, 'red', ifelse(obj$y$cluster==2, 'blue',
