@@ -229,7 +229,6 @@ batches <- rbind(zeisel.meta[,c("Run_s","Owner","SRA_Study_s")],
                  tasic.meta[,c("Run_s","Owner","SRA_Study_s")],
                  romanov.meta[,c("Run_s","Owner","SRA_Study_s")],
                  marques.meta[,c("Run_s","Owner","SRA_Study_s")])
-rownames(batches) <- batches$Run_s
 
 combined.data <- cbind(zeisel.data, tasic.data, romanov.data, marques.data)
 
@@ -250,35 +249,12 @@ TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 
 
 ```{r warning=FALSE}
-# Create and setup Seurat objects for each dataset
-#Here we are converting dataframes into sparse matrices since scRNAseq data is generally full of zeros.
-zeisel.data <- as(as.matrix(zeisel.data), "dgCMatrix")
-zeisel <- CreateSeuratObject(raw.data = zeisel.data)
-zeisel <- AddMetaData(object = zeisel, metadata = zeisel.meta[,c("Run_s","Owner")])
-zeisel <- FilterCells(zeisel, subset.names = "nGene", low.thresholds = 2500)
-zeisel <- FindVariableGenes(zeisel, do.plot = F, display.progress = F)
-zeisel <- ScaleData(zeisel, display.progress = F)
 
-tasic.data <- as(as.matrix(tasic.data), "dgCMatrix")
-tasic <- CreateSeuratObject(raw.data = tasic.data)
-tasic <- AddMetaData(object = tasic, metadata = tasic.meta[,c("Run_s","Owner")])
-tasic <- FilterCells(tasic, subset.names = "nGene", low.thresholds = 2500)
-tasic <- FindVariableGenes(tasic, do.plot = F, display.progress = F)
-tasic <- ScaleData(tasic, display.progress = F)
-
-romanov.data <- as(as.matrix(romanov.data), "dgCMatrix")
-romanov <- CreateSeuratObject(raw.data = romanov.data)
-romanov <- AddMetaData(object = romanov, metadata = romanov.meta[,c("Run_s","Owner")])
-romanov <- FilterCells(romanov, subset.names = "nGene", low.thresholds = 2500)
-romanov <- FindVariableGenes(romanov, do.plot = F, display.progress = F)
-romanov <- ScaleData(romanov, display.progress = F)
-
-marques.data <- as(as.matrix(marques.data), "dgCMatrix")
-marques <- CreateSeuratObject(raw.data = marques.data)
-marques <- AddMetaData(object = marques, metadata = marques.meta[,c("Run_s","Owner")])
-marques <- FilterCells(marques, subset.names = "nGene", low.thresholds = 2500)
-marques <- FindVariableGenes(marques, do.plot = F, display.progress = F)
-marques <- ScaleData(marques, display.progress = F)
+#Subset the data
+zeisel <- subsetData(fourDataset, cells.use=names(zeisel.data),do.center=T, do.scale=T)
+tasic <- subsetData(fourDataset, cells.use=names(tasic.data),do.center=T, do.scale=T)
+romanov <- subsetData(fourDataset, cells.use=names(romanov.data),do.center=T, do.scale=T)
+marques <- subsetData(fourDataset, cells.use=names(marques.data),do.center=T, do.scale=T)
 
 ```
 
@@ -346,6 +322,30 @@ TSNEPlot(mouseBrain.integrated, do.label = T)
 TSNEPlot(mouseBrain.integrated, do.label = T,group.by ="Owner")
 ```
 
+##### Exploring the alternative Clustering options with SIMLR
+
+```{r}
+library(SIMLR)
+set.seed(11111)
+#zeisel.data is already in log.
+# Determine optimal number of clusters as described in the Nat. Methods paper
+# picka cluster range and reports two metrics; the lower the value the more
+# support for that number of clusters; in my limited experience these methods
+# are concordant.
+zclust<-SIMLR_Estimate_Number_of_Clusters(zeisel.data, NUMC=2:5)
+#run SIMLR
+zsimlr<-SIMLR(zeisel.data, 4)
+# Create plotting function, color-coding points by cluster membership
+plotSIMLRclusters <- function(obj) {                                                                                                                                                           
+    col <- ifelse(obj$y$cluster==1, 'red', ifelse(obj$y$cluster==2, 'blue',
+                                                     ifelse(obj$y$cluster==3, 'green','yellow')))    
+    plot(obj$ydata, col=col, xlab = "SIMLR component 1", ylab = "SIMLR component 2", pch=20,  cex=0.7) 
+}
+
+# Call plotting function
+plotSIMLRclusters(zsimlr)
+
+```
 
 ```{r}
 sessionInfo()
