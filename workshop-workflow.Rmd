@@ -1,7 +1,7 @@
 ---
 title: "Intoduction to scRNAseq - workshop"
 author: "Yasin Kaymaz"
-date: "7/31/2018"
+date: "8/9/2018"
 output: html_document
 ---
 
@@ -56,7 +56,7 @@ pbmc.data <- Read10X(data.dir = "~/Downloads/scRNAseqWS/10Xdata/filtered_gene_bc
 ```
 We, then, create a Seurat object file using the data matrix we just generated. The raw data is stored in the 'raw.data' slot of the Seurat object (pbmc@raw.data). 
 
-You may choose to apply filtration to cells and/or genes (it is optional, though):
+Filter cells and/or genes:
 min.cells = 3   : keep all genes expressed in >= 3 cells. 
 min.genes = 200 : Keep all cells with at least 200 detected genes.
 
@@ -64,7 +64,7 @@ min.genes = 200 : Keep all cells with at least 200 detected genes.
 pbmc <- CreateSeuratObject(raw.data = pbmc.data, min.cells = 3, min.genes = 200, project = "10X_PBMC")
 ```
 
-One important measure is the proportion of mitochondrial gene expression to overall expression. This code below will calculate it for each cell and add them to the Seurat object metadata.
+One important measure is the proportion of mitochondrial gene expression to overall expression because this gives us an idea about the sensitivity level of sampling other transcripts. This code below will calculate it for each cell and add them to the Seurat object metadata.
 
 ```{r}
 mito.genes <- grep(pattern = "^MT-", x = rownames(x = pbmc@data), value = TRUE)
@@ -77,7 +77,7 @@ head(pbmc@meta.data)
 We can then check mitochondrial gene expression rate per cell as well as other two metrics internally calculated, nUMIs (Total UMI counts/cell) and nGene (number of genes detected).
 
 ```{r}
-VlnPlot(object = pbmc, features.plot = c("nGene", "nUMI", "percent.mito"), nCol = 3)
+VlnPlot(pbmc, features.plot = c("nGene", "nUMI", "percent.mito"))
 ```
 
 Using a function from the package, GenePlot, it is possible to compare cells for their nUMI, nGene, and mito percent values. 
@@ -85,15 +85,21 @@ Using a function from the package, GenePlot, it is possible to compare cells for
 Since there is a rare subset of cells with an outlier level of high mitochondrial percentage and also low UMI content, these can be used for filtration as well.
 
 ```{r}
-GenePlot(object = pbmc, gene1 = "nUMI", gene2 = "nGene")
-GenePlot(object = pbmc, gene1 = "nUMI", gene2 = "percent.mito")
+
+ggplot(pbmc@meta.data, aes(nUMI, nGene)) + geom_point()
+
+ggplot(pbmc@meta.data, aes(nUMI, percent.mito)) + geom_point()
+
 ```
 
-*** Here, we can provide an alternative way to detect doublets ***
 
 ```{r}
-pbmc <- FilterCells(object = pbmc, subset.names = c("nGene", "percent.mito"), 
+pbmc <- FilterCells(pbmc, subset.names = c("nGene", "percent.mito"), 
                     low.thresholds = c(200, -Inf), high.thresholds = c(2500, 0.05))
+
+#Check to see if filtration works as we expected.
+VlnPlot(pbmc, features.plot = c("nGene", "nUMI", "percent.mito"))
+
 ```
 
 ##### Normalization, Finding Variable Genes, and Scaling the data
@@ -102,14 +108,14 @@ The default normalization method provided is "Log normalization" which normalize
 
 ```{r}
 
-pbmc <- NormalizeData(object = pbmc, normalization.method = "LogNormalize", 
+pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", 
                       scale.factor = 10000)
 ```
 
 Here, 'FindVariableGenes' function calculates variance and mean for every genes across all cells and sorts genes by their variance to mean ratios (VMR). We are going to select top 1000 genes as highly variable genes.
 
 ```{r}
-pbmc <- FindVariableGenes(object = pbmc, mean.function = ExpMean, dispersion.function = LogVMR, 
+pbmc <- FindVariableGenes(pbmc, mean.function = ExpMean, dispersion.function = LogVMR, 
                           do.plot = FALSE,display.progress = FALSE)
 
 hv.genes <- head(rownames(pbmc@hvg.info), 1000)
@@ -119,7 +125,7 @@ hv.genes <- head(rownames(pbmc@hvg.info), 1000)
 Scaling function, ScaleData, is used to scale and center the expression values of each gene. This function also gives us an opportunity to regress out any unwanted variation from known sources (linear regression). Keep in mind that since the downstream analysis such as dimension reduction is done using only highly variable genes, we can scale the data using only 'hv.genes'. The scaled expression values are then store in the 'scale.data' slot of the object (pbmc@scale.data).
 
 ```{r}
-pbmc <- ScaleData(object = pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI", "percent.mito"),
+pbmc <- ScaleData(pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI", "percent.mito"),
                   display.progress = FALSE)
 ```
 
@@ -129,22 +135,22 @@ pbmc <- ScaleData(object = pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI
 Here, we are performing a Principal Component Analysis (PCA) on the normalized and scaled expression data using highly variable genes.
 
 ```{r}
-pbmc <- RunPCA(object = pbmc, pc.genes = hv.genes, do.print = FALSE)
+pbmc <- RunPCA(pbmc, pc.genes = hv.genes, do.print = FALSE)
 ```
 The first plot shows the first and second principal components. 
 ```{r}
-PCAPlot(object = pbmc, dim.1 = 1, dim.2 = 2)
+PCAPlot(pbmc, dim.1 = 1, dim.2 = 2)
 ```
 This second plot demonstrates the standard deviation explained by each PC. We are going to include PCs up to where the graph makes a kink.
 ```{r}
-PCElbowPlot(object = pbmc)
+PCElbowPlot(pbmc)
 ```
 
 Cluster cells is done using Shared Nearest Neighbor (SNN) method. First find k-nearest neighbors for every cell, then, construct a SNN graph. For more information about the algorithms, read Waltman and van Eck (2013) The European Physical Journal B. 
 Each cell (labelled with their barcode sequences) are assing to a cluster id:
 
 ```{r}
-pbmc <- FindClusters(object = pbmc, reduction.type = "pca", dims.use = 1:10, 
+pbmc <- FindClusters(pbmc, reduction.type = "pca", dims.use = 1:10, 
                      resolution = 0.6, print.output = TRUE, save.SNN = TRUE)
 head(pbmc@ident,20)
 
@@ -153,8 +159,8 @@ head(pbmc@ident,20)
 For visualizing clustered cells, we are going to use tSNE plot. When running tSNE we should be using the same PCs as we used previously in order to get the same clusters. 
 
 ```{r}
-pbmc <- RunTSNE(object = pbmc, dims.use = 1:10, do.fast = TRUE)
-TSNEPlot(object = pbmc, do.label = TRUE)
+pbmc <- RunTSNE(pbmc, dims.use = 1:10, do.fast = TRUE)
+TSNEPlot(pbmc, do.label = TRUE)
 ```
 
 
@@ -166,7 +172,7 @@ Here, we are further constrains such as 'min.pct = 0.25' meaning that it will te
 
 ```{r}
 
-pbmc.markers <- FindAllMarkers(object = pbmc, only.pos = TRUE, min.pct = 0.25, 
+pbmc.markers <- FindAllMarkers(pbmc, only.pos = TRUE, min.pct = 0.25, 
                                logfc.threshold = 0.25)
 markers <- pbmc.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
 
@@ -234,12 +240,12 @@ combined.data <- cbind(zeisel.data, tasic.data, romanov.data, marques.data)
 
 combined.data <- as(as.matrix(combined.data), "dgCMatrix")
 fourDataset <- CreateSeuratObject(raw.data = combined.data, project = "4dataset.Pre")
-fourDataset <- AddMetaData(object = fourDataset, metadata = batches)
+fourDataset <- AddMetaData(fourDataset, metadata = batches)
 fourDataset <- FilterCells(fourDataset, subset.names = "nGene", low.thresholds = 2500)
 fourDataset <- FindVariableGenes(fourDataset, do.plot = F, display.progress = F)
 fourDataset <- ScaleData(fourDataset, display.progress = F)
 
-fourDataset <- RunPCA(object = fourDataset, pc.genes = fourDataset@var.genes, pcs.compute = 10, do.print = FALSE)
+fourDataset <- RunPCA(fourDataset, pc.genes = fourDataset@var.genes, pcs.compute = 10, do.print = FALSE)
 PCAPlot(fourDataset, pt.size=1, group.by ="Owner", dim.1 = 1, dim.2 = 2)
 
 fourDataset <- RunTSNE(fourDataset, reduction.use = "pca", dims.use = 1:10)
@@ -251,10 +257,10 @@ TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 ```{r warning=FALSE}
 
 #Subset the data
-zeisel <- subsetData(fourDataset, cells.use=names(zeisel.data),do.center=T, do.scale=T)
-tasic <- subsetData(fourDataset, cells.use=names(tasic.data),do.center=T, do.scale=T)
-romanov <- subsetData(fourDataset, cells.use=names(romanov.data),do.center=T, do.scale=T)
-marques <- subsetData(fourDataset, cells.use=names(marques.data),do.center=T, do.scale=T)
+zeisel <- SubsetData(fourDataset, cells.use=names(zeisel.data),do.center=T, do.scale=T)
+tasic <- SubsetData(fourDataset, cells.use=names(tasic.data),do.center=T, do.scale=T)
+romanov <- SubsetData(fourDataset, cells.use=names(romanov.data),do.center=T, do.scale=T)
+marques <- SubsetData(fourDataset, cells.use=names(marques.data),do.center=T, do.scale=T)
 
 ```
 
@@ -293,7 +299,7 @@ mouseBrain.integrated <- RunMultiCCA(ob.list, genes.use = genes.use, num.ccs = 1
 
 Run rare non-overlapping filtering
 ```{r}
-mouseBrain.integrated <- CalcVarExpRatio(object = mouseBrain.integrated, reduction.type = "pca",
+mouseBrain.integrated <- CalcVarExpRatio(mouseBrain.integrated, reduction.type = "pca",
                                          grouping.var = "Owner", dims.use = 1:10)
 mouseBrain.integrated <- SubsetData(mouseBrain.integrated, subset.name = "var.ratio.pca",
                                     accept.low = 0.5)
