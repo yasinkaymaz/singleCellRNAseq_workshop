@@ -7,16 +7,28 @@ Get the material in this repository
 git clone https://github.com/yasinkaymaz/singleCellRNAseq_workshop.git
 ```
 Prepare R/Rstudio environment
-```
-install.packages(...)
-```
 
-Download the datasets
+For Seurat, follow the instructions: https://satijalab.org/seurat/install.html
+or simply
 
 ```
-mkdir scRNAseq_wd
-cd scRNAseq_wd
-wget ifx:/data/pub/bionano2018/scRNAseqWS.zip
+# Enter commands in R (or R studio, if installed)
+install.packages('Seurat')
+
+source("https://bioconductor.org/biocLite.R")
+biocLite("SIMLR")
+
+library(Seurat)
+library(Matrix)
+library(dplyr)
+library(SIMLR)
+```
+
+Download the datasets into your ~/Downloads folder.
+
+```
+cd ~/Downloads
+wget https://ifx.rc.fas.harvard.edu/pub/bionano2018/scRNAseqWS.zip
 unzip scRNAseqWS.zip
 ```
 
