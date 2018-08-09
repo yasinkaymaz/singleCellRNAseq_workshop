@@ -76,7 +76,9 @@ mito.genes <- grep(pattern = "^MT-", x = rownames(x = pbmc@data), value = TRUE)
 
 percent.mito <- Matrix::colSums(pbmc@raw.data[mito.genes, ])/Matrix::colSums(pbmc@raw.data)
 
-pbmc <- AddMetaData(object = pbmc, metadata = percent.mito, col.name = "percent.mito")
+pbmc <- AddMetaData(object = pbmc, 
+                    metadata = percent.mito, 
+                    col.name = "percent.mito")
 
 head(pbmc@meta.data)
 
@@ -105,8 +107,10 @@ ggplot(pbmc@meta.data, aes(nUMI, percent.mito)) + geom_point()
 
 ```{r}
 
-pbmc <- FilterCells(pbmc, subset.names = c("nGene", "percent.mito"), 
-                    low.thresholds = c(200, -Inf), high.thresholds = c(2500, 0.05))
+pbmc <- FilterCells(pbmc, 
+                    subset.names = c("nGene", "percent.mito"), 
+                    low.thresholds = c(200, -Inf), 
+                    high.thresholds = c(2500, 0.05))
 
 #Check to see if filtration works as we expected.
 VlnPlot(pbmc, features.plot = c("nGene", "nUMI", "percent.mito"))
@@ -119,7 +123,8 @@ The default normalization method provided is "Log normalization" which normalize
 
 ```{r}
 
-pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", 
+pbmc <- NormalizeData(pbmc, 
+                      normalization.method = "LogNormalize", 
                       scale.factor = 10000)
 ```
 
@@ -127,8 +132,11 @@ Here, 'FindVariableGenes' function calculates variance and mean for every genes 
 
 ```{r}
 
-pbmc <- FindVariableGenes(pbmc, mean.function = ExpMean, dispersion.function = LogVMR, 
-                          do.plot = FALSE,display.progress = FALSE)
+pbmc <- FindVariableGenes(pbmc, 
+                          mean.function = ExpMean, 
+                          dispersion.function = LogVMR, 
+                          do.plot = FALSE,
+                          display.progress = FALSE)
 
 hv.genes <- head(rownames(pbmc@hvg.info), 1000)
 
@@ -138,7 +146,9 @@ Scaling function, ScaleData, is used to scale and center the expression values o
 
 ```{r}
 
-pbmc <- ScaleData(pbmc, genes.use = hv.genes, vars.to.regress = c("nUMI", "percent.mito"),
+pbmc <- ScaleData(pbmc, 
+                  genes.use = hv.genes, 
+                  vars.to.regress = c("nUMI", "percent.mito"),
                   display.progress = FALSE)
 
 ```
@@ -150,7 +160,9 @@ Here, we are performing a Principal Component Analysis (PCA) on the normalized a
 
 ```{r}
 
-pbmc <- RunPCA(pbmc, pc.genes = hv.genes, do.print = FALSE)
+pbmc <- RunPCA(pbmc, 
+               pc.genes = hv.genes, 
+               do.print = FALSE)
 
 ```
 
@@ -175,8 +187,12 @@ Each cell (labelled with their barcode sequences) are assing to a cluster id:
 
 ```{r}
 
-pbmc <- FindClusters(pbmc, reduction.type = "pca", dims.use = 1:10, 
-                     resolution = 0.6, print.output = TRUE, save.SNN = TRUE)
+pbmc <- FindClusters(pbmc, 
+                     reduction.type = "pca", 
+                     dims.use = 1:10, 
+                     resolution = 0.6, 
+                     print.output = TRUE, 
+                     save.SNN = TRUE)
 
 head(pbmc@ident,20)
 
@@ -201,14 +217,19 @@ Here, we are further constrains such as 'min.pct = 0.25' meaning that it will te
 
 ```{r}
 
-pbmc.markers <- FindAllMarkers(pbmc, only.pos = TRUE, min.pct = 0.25, 
+pbmc.markers <- FindAllMarkers(pbmc, 
+                               only.pos = TRUE, 
+                               min.pct = 0.25, 
                                logfc.threshold = 0.25)
 
 top5.markers <- pbmc.markers %>% group_by(cluster) %>% top_n(5, avg_logFC)
 
 best.markers <- pbmc.markers %>% group_by(cluster) %>% top_n(1, avg_logFC)
 
-FeaturePlot(object = pbmc, features.plot = best.markers$gene, cols.use = c("grey", "blue"), reduction.use = "tsne")
+FeaturePlot(object = pbmc, 
+            features.plot = best.markers$gene, 
+            cols.use = c("grey", "blue"), 
+            reduction.use = "tsne")
 
 ```
 
@@ -274,16 +295,33 @@ batches <- rbind(zeisel.meta[,c("Run_s","Owner","SRA_Study_s")],
 combined.data <- cbind(zeisel.data, tasic.data, romanov.data, marques.data)
 
 combined.data <- as(as.matrix(combined.data), "dgCMatrix")
-fourDataset <- CreateSeuratObject(raw.data = combined.data, project = "4dataset.Pre")
+
+fourDataset <- CreateSeuratObject(raw.data = combined.data, 
+                                  project = "4dataset.Pre")
+
 fourDataset <- AddMetaData(fourDataset, metadata = batches)
-fourDataset <- FilterCells(fourDataset, subset.names = "nGene", low.thresholds = 2500)
-fourDataset <- FindVariableGenes(fourDataset, do.plot = F, display.progress = F)
+
+fourDataset <- FilterCells(fourDataset, 
+                           subset.names = "nGene", 
+                           low.thresholds = 2500)
+
+fourDataset <- FindVariableGenes(fourDataset, 
+                                 do.plot = F, 
+                                 display.progress = F)
+
 fourDataset <- ScaleData(fourDataset, display.progress = F)
 
-fourDataset <- RunPCA(fourDataset, pc.genes = fourDataset@var.genes, pcs.compute = 10, do.print = FALSE)
+fourDataset <- RunPCA(fourDataset, 
+                      pc.genes = fourDataset@var.genes, 
+                      pcs.compute = 5, 
+                      do.print = FALSE)
+
 PCAPlot(fourDataset, pt.size=1, group.by ="Owner", dim.1 = 1, dim.2 = 2)
 
-fourDataset <- RunTSNE(fourDataset, reduction.use = "pca", dims.use = 1:10)
+fourDataset <- RunTSNE(fourDataset, 
+                       reduction.use = "pca", 
+                       dims.use = 1:5)
+
 TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 
 ```
@@ -293,10 +331,17 @@ TSNEPlot(fourDataset, do.label = T, group.by ="Owner")
 ```{r warning=FALSE}
 
 #Subset the data
-zeisel <- SubsetData(fourDataset, cells.use=names(zeisel.data),do.center=T, do.scale=T)
-tasic <- SubsetData(fourDataset, cells.use=names(tasic.data),do.center=T, do.scale=T)
-romanov <- SubsetData(fourDataset, cells.use=names(romanov.data),do.center=T, do.scale=T)
-marques <- SubsetData(fourDataset, cells.use=names(marques.data),do.center=T, do.scale=T)
+zeisel <- SubsetData(fourDataset, 
+                     cells.use=names(zeisel.data), do.center=T, do.scale=T)
+
+tasic <- SubsetData(fourDataset, 
+                    cells.use=names(tasic.data), do.center=T, do.scale=T)
+
+romanov <- SubsetData(fourDataset, 
+                      cells.use=names(romanov.data), do.center=T, do.scale=T)
+
+marques <- SubsetData(fourDataset, 
+                      cells.use=names(marques.data), do.center=T, do.scale=T)
 
 ```
 
@@ -342,9 +387,13 @@ Run rare non-overlapping filtering
 
 ```{r}
 
-mouseBrain.integrated <- CalcVarExpRatio(mouseBrain.integrated, reduction.type = "pca",
-                                         grouping.var = "Owner", dims.use = 1:10)
-mouseBrain.integrated <- SubsetData(mouseBrain.integrated, subset.name = "var.ratio.pca",
+mouseBrain.integrated <- CalcVarExpRatio(mouseBrain.integrated,
+                                         reduction.type = "pca",
+                                         grouping.var = "Owner", 
+                                         dims.use = 1:10)
+
+mouseBrain.integrated <- SubsetData(mouseBrain.integrated, 
+                                    subset.name = "var.ratio.pca",
                                     accept.low = 0.5)
 
 ```
@@ -365,16 +414,19 @@ t-SNE and Clustering
 
 ```{r}
 
-mouseBrain.integrated <- FindClusters(mouseBrain.integrated, reduction.type = "cca.aligned",
-                                      dims.use = 1:10, save.SNN = T, resolution = 0.4)
+mouseBrain.integrated <- FindClusters(mouseBrain.integrated,
+                                      reduction.type = "cca.aligned",
+                                      dims.use = 1:10, save.SNN = T,
+                                      resolution = 0.4)
 
 mouseBrain.integrated <- RunTSNE(mouseBrain.integrated,
                                  reduction.use = "cca.aligned",
-                                 dims.use = 1:10)
+                                 dims.use = 1:10,
+                                 check_duplicates = FALSE)
 # Visualization
 TSNEPlot(mouseBrain.integrated, do.label = T)
 
-TSNEPlot(mouseBrain.integrated, do.label = T,group.by ="Owner")
+TSNEPlot(mouseBrain.integrated, do.label = T, group.by ="Owner")
 
 ```
 
